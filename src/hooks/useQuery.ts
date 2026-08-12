@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { selectUser, useAuthStore } from '@/stores/useAuthStore'
 import type { AxiosError } from 'axios'
 import { useNavigate } from '@tanstack/react-router'
+import axios from 'axios'
 
 const AVAILABILITY_KEY = ['doctorAvailability']
 
@@ -127,13 +128,54 @@ export const useClinicDoctorsReviews = (clinicSlug: string) => {
 };
 
 // جلب الباقات المتاحة للعرض العام (بدون تسجيل دخول)
+// جلب الباقات المتاحة للعرض العام (بدون تسجيل دخول) مع التشخيص الدقيق للأخطاء
 export function usePublicPlans() {
   return useQuery({
     queryKey: ['public-plans'],
     queryFn: async () => {
-      const response = await api.get('/plans')
-      return response.data
+      try {
+        const response = await api.get('/plans')
+        
+        if (!response || !response.data) {
+          throw new Error('استجابة الخادم فارغة أو غير صالحة.')
+        }
+        
+        return response.data
+      } catch (err: unknown) {
+        if (axios.isAxiosError(err)) {
+          console.error('❌ خطأ من الـ Axios أثناء جلب الباقات:', {
+            message: err.message,
+            status: err.response?.status,
+            data: err.response?.data,
+          })
+
+          if (err.response) {
+            const status = err.response.status
+            const serverMessage = (err.response.data as { message?: string })?.message || err.response.statusText
+            
+            if (status === 404) {
+              throw new Error('مسار الـ API غير موجود (404). تأكد من صحة الرابط الأساسي VITE_API_BASE_URL.')
+            } else if (status === 500) {
+              throw new Error('خطأ داخلي في خادم الباك إند (500). راجع ملفات السيرفر أو السجلات.')
+            } else {
+              throw new Error(`خطأ من الخادم (${status}): ${serverMessage}`)
+            }
+          } else if (err.request) {
+            throw new Error(
+              'فشل الاتصال بالخادم (لم يتم استقبال أي رد). الأسباب المحتملة: ' +
+              '1. مشكلة Mixed Content (حظر الاتصال بين HTTPS و HTTP). ' +
+              '2. استضافة الباك إند متوقفة (Free Hosting). ' +
+              '3. مشكلة CORS أو انقطاع الإنترنت.'
+            )
+          }
+        }
+
+        const standardError = err as Error
+        throw new Error(`حدث خطأ غير متوقع: ${standardError.message || 'خطأ مجهول'}`)
+      }
     },
+    retry: 1,
+    refetchOnWindowFocus: false,
   })
 }
 
