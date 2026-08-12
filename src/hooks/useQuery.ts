@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { selectUser, useAuthStore } from '@/stores/useAuthStore'
 import type { AxiosError } from 'axios'
 import { useNavigate } from '@tanstack/react-router'
-import axios from 'axios'
+import axios from 'axios';
 
 const AVAILABILITY_KEY = ['doctorAvailability']
 
@@ -128,7 +128,7 @@ export const useClinicDoctorsReviews = (clinicSlug: string) => {
 };
 
 // جلب الباقات المتاحة للعرض العام (بدون تسجيل دخول)
-// جلب الباقات المتاحة للعرض العام (بدون تسجيل دخول) مع التشخيص الدقيق للأخطاء
+// جلب الباقات المتاحة للعرض العام مع التشخيص الدقيق وتحديد مكان المشكلة (CORS أو الإعدادات)
 export function usePublicPlans() {
   return useQuery({
     queryKey: ['public-plans'],
@@ -143,10 +143,12 @@ export function usePublicPlans() {
         return response.data
       } catch (err: unknown) {
         if (axios.isAxiosError(err)) {
-          console.error('❌ خطأ من الـ Axios أثناء جلب الباقات:', {
+          // بما أن status مفقود (undefined) وخطأ شبكة، فالمشكلة في الـ CORS أو بروتوكول الاتصال
+          console.error('❌ [تشخيص أخطاء الاتصال]:', {
             message: err.message,
             status: err.response?.status,
-            data: err.response?.data,
+            configUrl: err.config?.url,
+            baseURL: err.config?.baseURL,
           })
 
           if (err.response) {
@@ -161,11 +163,21 @@ export function usePublicPlans() {
               throw new Error(`خطأ من الخادم (${status}): ${serverMessage}`)
             }
           } else if (err.request) {
+            // التحقق الذكي من سبب انقطاع الطلب قبل خروجه أو رفضه أمنياً
+            const currentProtocol = window.location.protocol; // https أو http
+            const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
+
+            if (currentProtocol === 'https:' && apiBaseUrl.startsWith('http:')) {
+              throw new Error(
+                '🔴 خطأ Mixed Content (أمان المتصفح): موقعك يعمل بـ HTTPS ويحاول استدعاء رابط باك إند يعمل بـ HTTP. ' +
+                'يجب تعديل رابط VITE_API_BASE_URL في لوحة تحكم Vercel ليكون بـ HTTPS.'
+              );
+            }
+
             throw new Error(
-              'فشل الاتصال بالخادم (لم يتم استقبال أي رد). الأسباب المحتملة: ' +
-              '1. مشكلة Mixed Content (حظر الاتصال بين HTTPS و HTTP). ' +
-              '2. استضافة الباك إند متوقفة (Free Hosting). ' +
-              '3. مشكلة CORS أو انقطاع الإنترنت.'
+              '🔴 خطأ Network Error بسبب سياسة الـ CORS أو حظر الاستضافة (InfinityFree). ' +
+              'السبب المؤكد: متصفحك يمنع الرد لأن الباك إند لا يرسل ترويسات الـ CORS المسموحة لموقعك على Vercel. ' +
+              'الحل: راجع ملف الإعدادات (config/cors.php) في الباك إند وتأكد أن allowed_origins مضبوطة بقبول جميع الروابط (*) أو رابط موقعك.'
             )
           }
         }
