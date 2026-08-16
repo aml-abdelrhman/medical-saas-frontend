@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { ProtectedLayout } from '@/components/layout/ProtectedLayout'
@@ -21,7 +21,7 @@ import {
   Edit2,
   Loader2,
   Stethoscope,
-  CalendarClock,
+  Image as ImageIcon,
 } from 'lucide-react'
 import type { Doctor } from '@/hooks/useQuery'
 
@@ -57,6 +57,7 @@ export default function AdminDoctorsDashboard() {
   })
 
   const [image, setImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
 
   const { data: doctors, isLoading: isDoctorsLoading } = useGetAdminDoctors()
@@ -80,6 +81,7 @@ export default function AdminDoctorsDashboard() {
   const resetForm = () => {
     setEditingId(null)
     setImage(null)
+    setImagePreview(null)
     setFormData({
       name_ar: '',
       name_en: '',
@@ -95,24 +97,49 @@ export default function AdminDoctorsDashboard() {
     })
   }
 
+  const getImageUrl = (imagePath?: string | null) => {
+    if (!imagePath) return '/default-doctor.png'
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath
+    }
+    const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/?$/, '') || ''
+    const cleanPath = imagePath.replace(/^\/+/, '')
+    if (cleanPath.startsWith('storage/')) {
+      return `${baseUrl}/${cleanPath}`
+    }
+    return `${baseUrl}/storage/${cleanPath}`
+  }
+
   const startEdit = (doc: Doctor) => {
     const name = parseSafe(doc.name)
     const bio = parseSafe(doc.bio)
+    
     setEditingId(doc.id)
     setFormData({
-      name_ar: name.ar || '',
-      name_en: name.en || '',
+      name_ar: typeof name === 'object' && name !== null ? name.ar || '' : (typeof doc.name === 'string' ? doc.name : ''),
+      name_en: typeof name === 'object' && name !== null ? name.en || '' : '',
       email: '',
       password: '',
       specialty_id: doc.specialty_id?.toString() || '',
-      bio_ar: bio.ar || '',
-      bio_en: bio.en || '',
+      bio_ar: typeof bio === 'object' && bio !== null ? bio.ar || '' : (typeof doc.bio === 'string' ? doc.bio : ''),
+      bio_en: typeof bio === 'object' && bio !== null ? bio.en || '' : '',
       years_experience: doc.years_experience?.toString() || '',
       price_from: doc.price_from?.toString() || '',
       languages: Array.isArray(doc.languages) ? doc.languages.join(',') : '',
       rating: doc.rating?.toString() || '5',
     })
+    
+    setImage(null)
+    setImagePreview(getImageUrl(doc.image))
     formRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setImage(file)
+      setImagePreview(URL.createObjectURL(file))
+    }
   }
 
   const handleSave = () => {
@@ -154,7 +181,7 @@ export default function AdminDoctorsDashboard() {
       .filter((l) => l !== '')
     data.append('languages', JSON.stringify(langs))
     
-    if (image) {
+    if (image instanceof File) {
       data.append('image', image)
     }
 
@@ -196,15 +223,6 @@ export default function AdminDoctorsDashboard() {
       ? true
       : doc.specialty_id?.toString() === filterSpecialty,
   )
-
-  const getImageUrl = (imagePath?: string | null) => {
-    if (!imagePath) return '/default-doctor.png'
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return imagePath
-    }
-    const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/api\/?$/, '') || ''
-    return `${baseUrl}/storage/${imagePath.replace(/^\/+/, '')}`
-  }
 
   const getSpecialtyName = (doc: Doctor) => {
     if (doc.specialty) {
@@ -298,7 +316,7 @@ export default function AdminDoctorsDashboard() {
                 <option value="">{t('admin.select_specialty') || 'اختر التخصص'}</option>
                 {specialties?.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {parseSafe(s.name)[currentLang]}
+                    {parseSafe(s.name)[currentLang] || parseSafe(s.name).ar}
                   </option>
                 ))}
               </select>
@@ -355,26 +373,37 @@ export default function AdminDoctorsDashboard() {
                 />
               </div>
 
+              {/* Image Upload & Preview Section */}
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium text-gray-700">
                   {t('admin.upload_image') || 'صورة الطبيب'}
                 </label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full justify-start text-muted-foreground"
-                  onClick={() =>
-                    document.getElementById('doctor-image-input')?.click()
-                  }
-                >
-                  {image ? image.name : (t('admin.choose_file') || 'اختر ملفاً للصورة')}
-                </Button>
+                <div className="flex items-center gap-4">
+                  {imagePreview && (
+                    <img
+                      src={imagePreview}
+                      alt="Preview"
+                      className="w-16 h-16 rounded-full object-cover border-2 border-[#2D6A4F]"
+                    />
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 justify-start text-muted-foreground"
+                    onClick={() =>
+                      document.getElementById('doctor-image-input')?.click()
+                    }
+                  >
+                    <ImageIcon className="w-4 h-4 mr-2" />
+                    {image instanceof File ? image.name : (t('admin.choose_file') || 'اختر ملفاً للصورة')}
+                  </Button>
+                </div>
                 <input
                   id="doctor-image-input"
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={(e) => setImage(e.target.files?.[0] || null)}
+                  onChange={handleImageChange}
                 />
               </div>
 
@@ -419,7 +448,7 @@ export default function AdminDoctorsDashboard() {
             <option value="all">{t('all_specialties') || 'كل التخصصات'}</option>
             {specialties?.map((s) => (
               <option key={s.id} value={s.id.toString()}>
-                {parseSafe(s.name)[currentLang]}
+                {parseSafe(s.name)[currentLang] || parseSafe(s.name).ar}
               </option>
             ))}
           </select>
@@ -448,47 +477,72 @@ export default function AdminDoctorsDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredDoctors?.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-4 py-3">
-                        <img
-                          src={getImageUrl(doc.image)}
-                          alt={parseSafe(doc.name)[currentLang]}
-                          className="w-12 h-12 rounded-full object-cover border"
-                        />
-                      </td>
-                      <td className="px-4 py-3 font-bold text-[#0E2A2E]">
-                        {parseSafe(doc.name)[currentLang]}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {getSpecialtyName(doc)}
-                      </td>
-                      <td className="px-4 py-3 max-w-[250px] truncate text-sm text-gray-500">
-                        {parseSafe(doc.bio)[currentLang]}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => startEdit(doc)}
-                            title="تعديل"
-                          >
-                            <Edit2 size={16} />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => confirmDelete(doc.id)}
-                            title="حذف"
-                          >
-                            <Trash2 size={16} />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredDoctors?.map((doc) => {
+                    const parsedName = parseSafe(doc.name);
+                    const doctorName = 
+                      (typeof doc.name === 'string' && !doc.name.startsWith('{') ? doc.name : null) ||
+                      parsedName[currentLang] || 
+                      parsedName.ar || 
+                      parsedName.en || 
+                      (doc as any)[`name_${currentLang}`] || 
+                      (doc as any).name_ar || 
+                      'بدون اسم';
+
+                    const parsedBio = parseSafe(doc.bio);
+                    const doctorBio = 
+                      (typeof doc.bio === 'string' && !doc.bio.startsWith('{') ? doc.bio : null) ||
+                      parsedBio[currentLang] || 
+                      parsedBio.ar || 
+                      parsedBio.en || 
+                      (doc as any)[`bio_${currentLang}`] || 
+                      (doc as any).bio_ar || 
+                      'لا توجد نبذة';
+
+                    return (
+                      <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-4 py-3">
+                          <img
+                            src={getImageUrl(doc.image)}
+                            alt={doctorName}
+                            className="w-12 h-12 rounded-full object-cover border"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = '/default-doctor.png';
+                            }}
+                          />
+                        </td>
+                        <td className="px-4 py-3 font-bold text-[#0E2A2E]">
+                          {doctorName}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {getSpecialtyName(doc)}
+                        </td>
+                        <td className="px-4 py-3 max-w-[250px] truncate text-sm text-gray-500">
+                          {doctorBio}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => startEdit(doc)}
+                              title="تعديل"
+                            >
+                              <Edit2 size={16} />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => confirmDelete(doc.id)}
+                              title="حذف"
+                            >
+                              <Trash2 size={16} />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
