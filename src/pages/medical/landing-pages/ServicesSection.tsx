@@ -20,13 +20,28 @@ import { getImageUrl } from '@/utils/imageUtils'
 type SortOption = 'default' | 'price-desc' | 'rating-desc'
 const MIN_SLIDES_FOR_LOOP = 6
 
-// دالة مساعدة آمنة لضمان عدم طباعة الكائنات بشكل مباشر في الـ JSX
+// دالة مساعدة آمنة لضمان عدم طباعة الكائنات أو نصوص الـ JSON بشكل مباشر
 const renderSafeText = (field: any, lang: string) => {
   if (!field) return ''
-  if (typeof field === 'object') {
-    return field[lang] || field.ar || field.en || ''
+
+  let parsedField = field
+
+  // إذا كانت البيانات مخزنة كنص JSON، نقوم بتحويلها إلى كائن أولاً
+  if (typeof field === 'string') {
+    try {
+      parsedField = JSON.parse(field)
+    } catch (e) {
+      // لو النص ليس JSON عادي، نتركه كما هو
+      parsedField = field
+    }
   }
-  return String(field)
+
+  // التعامل مع الكائن بعد التحويل
+  if (typeof parsedField === 'object' && parsedField !== null) {
+    return parsedField[lang] || parsedField.ar || parsedField.en || ''
+  }
+
+  return String(parsedField)
 }
 
 export const ServicesSection = () => {
