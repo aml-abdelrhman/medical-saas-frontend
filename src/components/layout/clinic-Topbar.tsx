@@ -37,27 +37,34 @@ export function Topbar({ clinic }: TopbarProps) {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const getClinicName = () => {
+const getClinicName = () => {
     if (!clinic?.name) return 'Clinic'
+    
+    // لو كان النص مخزن كـ JSON String
     if (typeof clinic.name === 'string') {
       try {
         const parsed = JSON.parse(clinic.name)
-        return (
-          parsed[i18n.language] || parsed['ar'] || parsed['en'] || clinic.name
-        )
+        if (parsed && typeof parsed === 'object') {
+          return parsed[i18n.language] || parsed['ar'] || parsed['en'] || 'Clinic'
+        }
+        return clinic.name
       } catch (e) {
         return clinic.name
       }
     }
+    
+    // لو كان الـ name قادم كـ Object مباشرة (مثل الحالة الظاهرة لديكِ)
     if (typeof clinic.name === 'object') {
       return (
         clinic.name[i18n.language] ||
         clinic.name['ar'] ||
         clinic.name['en'] ||
+        Object.values(clinic.name)[0] ||
         'Clinic'
       )
     }
-    return clinic.name
+    
+    return String(clinic.name)
   }
 
   const getDashboardLink = () => {
