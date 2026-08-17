@@ -18,7 +18,7 @@ interface TopbarProps {
 export function Topbar({ clinic }: TopbarProps) {
   const { t, i18n } = useTranslation()
   const params = useParams({ strict: false }) as { slug?: string }
-  
+
   const currentUser = useAuthStore((state) => state.user)
   const clinicSlug = params.slug || clinic?.slug || currentUser?.clinic?.slug || ''
 
@@ -37,10 +37,11 @@ export function Topbar({ clinic }: TopbarProps) {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-const getClinicName = () => {
+  // ✅ دالة الاسم — بتتعامل مع string عادي وكمان object {ar, en}
+  const getClinicName = () => {
     if (!clinic?.name) return 'Clinic'
-    
-    // لو كان النص مخزن كـ JSON String
+
+    // الحالة 1: الاسم مخزن كـ JSON String
     if (typeof clinic.name === 'string') {
       try {
         const parsed = JSON.parse(clinic.name)
@@ -52,8 +53,8 @@ const getClinicName = () => {
         return clinic.name
       }
     }
-    
-    // لو كان الـ name قادم كـ Object مباشرة (مثل الحالة الظاهرة لديكِ)
+
+    // الحالة 2: الاسم قادم كـ Object مباشرة { ar, en }
     if (typeof clinic.name === 'object') {
       return (
         clinic.name[i18n.language] ||
@@ -63,7 +64,7 @@ const getClinicName = () => {
         'Clinic'
       )
     }
-    
+
     return String(clinic.name)
   }
 
@@ -149,7 +150,7 @@ const getClinicName = () => {
           {currentUser ? (
             <a
               href={getDashboardLink()}
-              className="group flex items-center gap-2.5 px-5 py-2.5 rounded-xl border border-white/20 bg-emerald-600/80 backdrop-blur-md text-white text-sm font-bold hover:bg-emerald-700 transition-all shadow-sm cursor-pointer"
+              className="group flex items-center gap-2.5 px-5 py-2.5 rounded-xl border border-white/20 bg-emerald-600/85 backdrop-blur-md text-white text-sm font-bold hover:bg-emerald-700 transition-all shadow-sm cursor-pointer"
             >
               <LayoutDashboard size={16} className="text-white shrink-0" />
               <span className="truncate max-w-[120px]">
